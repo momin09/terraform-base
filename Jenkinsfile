@@ -71,12 +71,24 @@ pipeline {
       }
     }
 
+    stage('Approval') {
+      when {
+        anyOf {
+          expression { params.ACTION == 'apply' }
+          expression { params.ACTION == 'destroy' }
+        }
+      }
+      agent none
+      steps {
+        input message: "${params.ACTION.toUpperCase()}를 실행합니까?", ok: "${params.ACTION.toUpperCase()}"
+      }
+    }
+
     stage('Terraform Apply') {
       when {
         expression { params.ACTION == 'apply' }
       }
       steps {
-        input message: "Apply를 실행합니까?", ok: "Apply"
         container('terraform') {
           sh """
             terraform apply \
@@ -93,7 +105,6 @@ pipeline {
         expression { params.ACTION == 'destroy' }
       }
       steps {
-        input message: "Destroy를 실행합니까?", ok: "Destroy"
         container('terraform') {
           sh """
             terraform destroy \
