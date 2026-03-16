@@ -1,5 +1,23 @@
 pipeline {
-  agent any
+  agent {
+    kubernetes {
+      yaml '''
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          containers:
+          - name: terraform
+            image: hashicorp/terraform:1.7
+            command: ["/bin/sh", "-c", "cat"]
+            tty: true
+          - name: jnlp
+            image: jenkins/inbound-agent:latest
+      '''
+    }
+  }
 
   environment {
     AWS_ACCESS_KEY_ID     = credentials('aws-access-key-id')
@@ -29,17 +47,21 @@ pipeline {
 
     stage('Terraform Init') {
       steps {
-        sh 'terraform init -input=false'
+        container('terraform') {
+          sh 'terraform init -input=false'
+        }
       }
     }
 
     stage('Terraform Plan') {
       steps {
-        sh """
-          terraform plan \
-            -var="ecr_name=${params.ECR_NAME}" \
-            -input=false
-        """
+        container('terraform') {
+          sh """
+            terraform plan \
+              -var="ecr_name=${params.ECR_NAME}" \
+              -input=false
+          """
+        }
       }
     }
 
@@ -49,12 +71,14 @@ pipeline {
       }
       steps {
         input message: "Apply를 실행합니까?", ok: "Apply"
-        sh """
-          terraform apply \
-            -var="ecr_name=${params.ECR_NAME}" \
-            -auto-approve \
-            -input=false
-        """
+        container('terraform') {
+          sh """
+            terraform apply \
+              -var="ecr_name=${params.ECR_NAME}" \
+              -auto-approve \
+              -input=false
+          """
+        }
       }
     }
 
@@ -64,12 +88,14 @@ pipeline {
       }
       steps {
         input message: "Destroy를 실행합니까?", ok: "Destroy"
-        sh """
-          terraform destroy \
-            -var="ecr_name=${params.ECR_NAME}" \
-            -auto-approve \
-            -input=false
-        """
+        container('terraform') {
+          sh """
+            terraform destroy \
+              -var="ecr_name=${params.ECR_NAME}" \
+              -auto-approve \
+              -input=false
+          """
+        }
       }
     }
   }
